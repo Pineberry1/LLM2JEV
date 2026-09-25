@@ -79,7 +79,8 @@ def measure(fn, repeats: int = 500) -> float:
     return 1000 * start.elapsed_time(end) / (10 * max(1, repeats // 10))
 
 
-def run(model_path: str, prefix_len: int, branches: int, suffix_len: int, repeats: int):
+def run(model_path: str, prefix_len: int, branches: int, suffix_len: int,
+        repeats: int, use_flashinfer: bool = False):
     q, pk, pv, sk, sv = model_tensors(model_path, prefix_len, branches, suffix_len)
     lengths = torch.full((branches,), suffix_len, dtype=torch.int32, device="cuda")
     expected = reference_attention(q, pk, pv, sk, sv, lengths)
@@ -91,14 +92,38 @@ def run(model_path: str, prefix_len: int, branches: int, suffix_len: int, repeat
         actual = fn()
         error = (actual.float() - expected.float()).abs().max().item()
         results[str(group)] = {"latency_us": round(measure(fn, repeats), 3), "max_abs_error": round(error, 6)}
+    if use_flashinfer:
+        from llm2jev.flashinfer_attention import FlashInferSharedPrefixAttention
+
+        runner = FlashInferSharedPrefixAttention(
+            branches, q.shape[1], pk.shape[1], q.shape[2], prefix_len,
+            suffix_len, q.dtype, q.device,
+        )
+        cache = runner.new_cache(pk, pv)
+        for position in range(suffix_len):
+            runner.append(cache, position, sk[:, position], sv[:, position])
+        fn = lambda: runner.forward(q, cache, suffix_len)
+        actual = fn()
+        error = (actual.float() - expected.float()).abs().max().item()
+        results["flashinfer"] = {
+            "latency_us": round(measure(fn, repeats), 3),
+            "max_abs_error": round(error, 6),
+        }
     results["speedup"] = round(results["1"]["latency_us"] / results["16"]["latency_us"], 3)
-    return {
-        "model": model_path, "gpu": torch.cuda.get_device_name(),
+    result = {
+        "model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
+        "gpu": torch.cuda.get_device_name(),
         "prefix_tokens": prefix_len, "branches": branches, "suffix_tokens": suffix_len,
         "query_heads": q.shape[1], "kv_heads": pk.shape[1], "head_dim": q.shape[2],
         "dtype": str(q.dtype), "timing": "CUDA graph, kernel path, microseconds per call",
         "results": results,
     }
+    if use_flashinfer:
+        import flashinfer
+
+        result["flashinfer_version"] = flashinfer.__version__
+        result["flashinfer_scope"] = "planned cascade run; prefix and suffix page writes excluded"
+    return result
 
 
 def main():
@@ -108,9 +133,11 @@ def main():
     parser.add_argument("--branches", type=int, default=32)
     parser.add_argument("--suffix-len", type=int, default=8)
     parser.add_argument("--repeats", type=int, default=500)
+    parser.add_argument("--flashinfer", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = run(args.model_path, args.prefix_len, args.branches, args.suffix_len, args.repeats)
+    result = run(args.model_path, args.prefix_len, args.branches, args.suffix_len,
+                 args.repeats, args.flashinfer)
     rendered = json.dumps(result, indent=2, ensure_ascii=False)
     print(rendered)
     if args.output:

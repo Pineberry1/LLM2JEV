@@ -33,6 +33,8 @@ def main():
     parser.add_argument("--branches", type=int, default=16)
     parser.add_argument("--suffix-len", type=int, default=8)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--flashinfer", action="store_true",
+                        help="Also benchmark FlashInfer shared-prefix decode")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -70,12 +72,20 @@ def main():
             )
             timings[str(group)] = round(latency, 3)
             probabilities[str(group)] = probs
+        if args.flashinfer:
+            latency, probs = measure(
+                lambda: engine.score_suffixes(suffixes, candidate_ids,
+                                              backend="flashinfer"), args.repeats,
+            )
+            timings["flashinfer"] = round(latency, 3)
+            probabilities["flashinfer"] = probs
         full_ids = torch.cat((prefix, suffixes[0:1]), dim=1)
         reference_logits = model(input_ids=full_ids, use_cache=False).logits[0, -1]
         reference_probs = reference_logits.index_select(0, candidate_ids).float().softmax(-1)
 
     result = {
-        "model": args.model_path, "gpu": torch.cuda.get_device_name(),
+        "model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
+        "gpu": torch.cuda.get_device_name(),
         "prefix_tokens": args.prefix_len, "branches": args.branches,
         "suffix_tokens": args.suffix_len, "candidate_tokens": list(labels),
         "prefix_prefill_excluded": True,
@@ -90,6 +100,16 @@ def main():
             (probabilities["16"][0] - reference_probs).abs().max().item(), 6,
         ),
     }
+    if args.flashinfer:
+        import flashinfer
+
+        result["flashinfer_version"] = flashinfer.__version__
+        result["max_probability_delta_flashinfer_vs_triton"] = round(
+            (probabilities["flashinfer"] - probabilities["16"]).abs().max().item(), 6,
+        )
+        result["max_first_branch_delta_flashinfer_vs_transformers"] = round(
+            (probabilities["flashinfer"][0] - reference_probs).abs().max().item(), 6,
+        )
     rendered = json.dumps(result, indent=2)
     print(rendered)
     if args.output:

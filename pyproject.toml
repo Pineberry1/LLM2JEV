@@ -7,6 +7,7 @@ dependencies = ["torch>=2.4", "triton>=3.0"]
 
 [project.optional-dependencies]
 model = ["transformers>=4.51", "safetensors"]
+flashinfer = ["flashinfer-python>=0.6.13,<0.7"]
 
 [build-system]
 requires = ["setuptools>=68"]

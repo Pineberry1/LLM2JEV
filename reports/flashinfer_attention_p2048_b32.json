@@ -1,0 +1,29 @@
+{
+  "model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
+  "gpu": "NVIDIA A40",
+  "prefix_tokens": 2048,
+  "branches": 32,
+  "suffix_tokens": 8,
+  "query_heads": 32,
+  "kv_heads": 8,
+  "head_dim": 128,
+  "dtype": "torch.bfloat16",
+  "timing": "CUDA graph, kernel path, microseconds per call",
+  "results": {
+    "1": {
+      "latency_us": 509.061,
+      "max_abs_error": 2e-06
+    },
+    "16": {
+      "latency_us": 40.873,
+      "max_abs_error": 0.000488
+    },
+    "flashinfer": {
+      "latency_us": 51.645,
+      "max_abs_error": 0.000977
+    },
+    "speedup": 12.455
+  },
+  "flashinfer_version": "0.6.13",
+  "flashinfer_scope": "planned cascade run; prefix and suffix page writes excluded"
+}

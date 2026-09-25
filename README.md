@@ -3,7 +3,9 @@
 An independent experiment on one long shared state and many small decisions. It
 implements a Triton attention kernel that lets a group of branch queries reuse
 each prefix K/V tile, plus a Qwen3 scoring path that reads only candidate token
-logits. It also includes a same-GPU comparison with a separate OpenJev 4B
+logits. An optional FlashInfer backend uses its two-level
+[`MultiLevelCascadeAttentionWrapper`](https://docs.flashinfer.ai/api/cascade.html)
+for the same shared-prefix branch workload. It also includes a same-GPU comparison with a separate OpenJev 4B
 checkpoint. This project is not affiliated with TypeSafe or the authors of
 OpenJev.
 
@@ -21,6 +23,10 @@ OpenJev.
   OpenJev 4B v5 through its author's `predict_hypotheses` method, which shares a
   prefix across the options. Both arms run on the same A40 in BF16, one after
   the other. The comparison includes tokenization and model execution.
+- **FlashInfer comparison:** the shared prefix and independent branch suffixes
+  are placed in two levels of paged KV cache. Plans and packed prefix pages are
+  prepared once per state; suffix page writes are included in complete Qwen3
+  decision timings. FlashInfer and Triton receive the same Q/K/V and model.
 
 Qwen3-4B and OpenJev 4B v5 are different trained models with different prompt
 templates and readouts. This is a systems comparison for the stated workload,
@@ -68,6 +74,20 @@ The OpenJev checkpoint is [AlexWortega/openjev](https://huggingface.co/AlexWorte
 classifier, not TypeSafe Jev's private weights. The separate
 [`openjev/openjev`](https://huggingface.co/openjev/openjev) repository is a 27B
 model and is not the 4B checkpoint used here.
+
+To run the optional FlashInfer comparison, install a FlashInfer build that
+matches your PyTorch and CUDA environment, then run:
+
+```bash
+python benchmarks/flashinfer_smoke.py
+python benchmarks/qwen3_attention.py \
+  --model-path /path/to/Qwen3-4B --prefix-len 2048 --branches 32 --flashinfer
+python benchmarks/qwen3_decisions.py \
+  --model-path /path/to/Qwen3-4B --prefix-len 2048 --branches 32 --flashinfer
+```
+
+The reported FlashInfer runs used `flashinfer-python==0.6.13`, PyTorch
+`2.11.0+cu128`, and CUDA 12.8 to compile the required kernels on the A40.
 
 ## Results on one NVIDIA A40
 
@@ -117,6 +137,36 @@ faster for the short state; this Qwen path is faster for the long state. The
 models agreed on the binary direction of 5/8 and 12/16 questions respectively;
 no ground-truth accuracy claim is made from those counts.
 
+### FlashInfer shared-prefix cascade versus the Triton kernel
+
+These pairs were measured in the same benchmark process on the same A40.
+Attention timings use CUDA graphs with plans and KV page writes excluded.
+Complete Qwen3 timings include suffix page writes and every model layer, but
+exclude the first prefix prefill and one-time FlashInfer planning and prefix
+page packing.
+
+| Shared prefix / branches | Triton attention | FlashInfer attention | Triton full decision | FlashInfer full decision |
+| --- | ---: | ---: | ---: | ---: |
+| 256 / 16 | 9.06 µs | 22.07 µs | 213.10 ms | 234.59 ms |
+| 2,048 / 32 | 40.87 µs | 51.65 µs | 211.99 ms | 233.18 ms |
+
+The FlashInfer smoke check covered a 251-token prefix and suffix lengths of
+1, 6, 17, and 20, with maximum absolute attention-output error `0.00196`
+against the float32 reference. The largest probability difference between
+FlashInfer and Triton across the complete-decision runs was `0.01161`.
+
+Using the FlashInfer backend in the earlier OpenJev workload gave:
+
+| State / binary questions | Qwen + FlashInfer first request | Qwen + FlashInfer cached state | OpenJev shared prefix |
+| --- | ---: | ---: | ---: |
+| ~250 tokens / 8 | 439.0 ms | 401.7 ms | 337.3 ms |
+| ~2,000 tokens / 16 | 680.3 ms | 442.4 ms | 932.6 ms |
+
+Each entry is the median of five runs after warmup. These are separate runs
+from the original Triton versus OpenJev table above, so the direct backend
+comparison is the same-process table. Raw samples and timings are in
+[`reports/`](reports/).
+
 ## Limits
 
 The Triton kernel handles the final query of each branch with a common prefix
@@ -127,3 +177,6 @@ so matching latency does not imply matching decision quality or calibration.
 The Qwen3-4B checkpoint was already present on the server; its upstream
 revision was not recorded. Reproducing the exact Qwen numbers requires the
 same weights and software environment.
+The FlashInfer backend uses an optional external dependency and caches its
+plan for each suffix position and prefix pages for each state. Its measured
+performance is specific to FlashInfer 0.6.13, this A40, and these shapes.

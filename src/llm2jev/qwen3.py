@@ -22,6 +22,7 @@ class Qwen3BranchEngine:
         self.prefix_keys = None
         self.prefix_values = None
         self.prefix_len = 0
+        self._flashinfer_runners = {}
 
     @torch.inference_mode()
     def prepare_prefix(self, prefix_ids: torch.Tensor) -> None:
@@ -32,6 +33,7 @@ class Qwen3BranchEngine:
         self.prefix_keys = [layer.keys[0].transpose(0, 1).contiguous() for layer in cache.layers]
         self.prefix_values = [layer.values[0].transpose(0, 1).contiguous() for layer in cache.layers]
         self.prefix_len = prefix_ids.shape[1]
+        self._flashinfer_runners.clear()
 
     @torch.inference_mode()
     def score_suffixes(
@@ -41,8 +43,11 @@ class Qwen3BranchEngine:
         suffix_lengths: torch.Tensor | None = None,
         *,
         branches_per_program: int = 16,
+        backend: str = "triton",
     ) -> torch.Tensor:
         """Return normalized candidate probabilities with shape [B, C]."""
+        if backend not in ("triton", "flashinfer"):
+            raise ValueError("backend must be 'triton' or 'flashinfer'")
         if self.prefix_keys is None:
             raise ValueError("Call prepare_prefix first")
         if suffix_ids.ndim != 2 or suffix_ids.shape[0] < 1 or suffix_ids.shape[1] < 1:
@@ -55,8 +60,25 @@ class Qwen3BranchEngine:
 
         model = self.model
         batch, suffix_len = suffix_ids.shape
-        suffix_keys = [None] * len(model.model.layers)
-        suffix_values = [None] * len(model.model.layers)
+        if backend == "flashinfer":
+            from .flashinfer_attention import FlashInferSharedPrefixAttention
+
+            first_attn = model.model.layers[0].self_attn
+            key = (batch, self.prefix_len, suffix_len, first_attn.config.num_attention_heads,
+                   first_attn.config.num_key_value_heads, first_attn.head_dim,
+                   self.prefix_keys[0].dtype, suffix_ids.device)
+            if key not in self._flashinfer_runners:
+                self._flashinfer_runners[key] = FlashInferSharedPrefixAttention(
+                    batch, key[3], key[4], key[5], self.prefix_len,
+                    suffix_len, key[6], key[7],
+                )
+            flashinfer_runner = self._flashinfer_runners[key]
+            flashinfer_caches = flashinfer_runner.prepare_layer_caches(
+                self.prefix_keys, self.prefix_values,
+            )
+        else:
+            suffix_keys = [None] * len(model.model.layers)
+            suffix_values = [None] * len(model.model.layers)
         hidden = None
         final_hidden = None
 
@@ -81,15 +103,22 @@ class Qwen3BranchEngine:
                 q, k = apply_rotary_pos_emb(q, k, cos, sin)
                 current_k = k.transpose(1, 2)
                 current_v = v.transpose(1, 2)
-                suffix_keys[index] = (current_k if suffix_keys[index] is None else
-                                      torch.cat((suffix_keys[index], current_k), dim=1))
-                suffix_values[index] = (current_v if suffix_values[index] is None else
-                                        torch.cat((suffix_values[index], current_v), dim=1))
-                context = shared_prefix_attention(
-                    q[:, :, 0, :], self.prefix_keys[index], self.prefix_values[index],
-                    suffix_keys[index], suffix_values[index], lengths,
-                    branches_per_program=branches_per_program,
-                )
+                if backend == "flashinfer":
+                    flashinfer_runner.append(flashinfer_caches[index], position,
+                                             current_k[:, 0], current_v[:, 0])
+                    context = flashinfer_runner.forward(
+                        q[:, :, 0, :], flashinfer_caches[index], position + 1,
+                    )
+                else:
+                    suffix_keys[index] = (current_k if suffix_keys[index] is None else
+                                          torch.cat((suffix_keys[index], current_k), dim=1))
+                    suffix_values[index] = (current_v if suffix_values[index] is None else
+                                            torch.cat((suffix_values[index], current_v), dim=1))
+                    context = shared_prefix_attention(
+                        q[:, :, 0, :], self.prefix_keys[index], self.prefix_values[index],
+                        suffix_keys[index], suffix_values[index], lengths,
+                        branches_per_program=branches_per_program,
+                    )
                 hidden = residual + attn.o_proj(context.reshape(batch, 1, -1))
                 hidden = hidden + layer.mlp(layer.post_attention_layernorm(hidden))
 

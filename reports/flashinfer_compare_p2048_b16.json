@@ -1,0 +1,80 @@
+{
+  "gpu": "NVIDIA A40",
+  "qwen_model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
+  "qwen_backend": "flashinfer",
+  "openjev_model": "AlexWortega/openjev/qwen3.5-4b-nli-v5",
+  "openjev_revision": "058a6c24911b46d908fbe23541390f8af3df3e4d",
+  "questions": 16,
+  "state_tokens_qwen": 1978,
+  "input_tokens_openjev_first_hypothesis": 2001,
+  "qwen_suffix_tokens_min_max": [
+    12,
+    15
+  ],
+  "qwen_cold_ms": 680.273,
+  "qwen_warm_ms": 442.379,
+  "openjev_shared_prefix_ms": 932.584,
+  "latency_samples_ms": {
+    "qwen_cold": [
+      680.273,
+      673.724,
+      670.78,
+      894.362,
+      682.875
+    ],
+    "qwen_warm": [
+      442.379,
+      441.745,
+      442.55,
+      443.965,
+      440.405
+    ],
+    "openjev_shared_prefix": [
+      931.326,
+      932.584,
+      931.837,
+      932.604,
+      936.294
+    ]
+  },
+  "openjev_to_qwen_cold_ratio": 1.371,
+  "openjev_to_qwen_warm_ratio": 2.108,
+  "answer_agreement": "11/16",
+  "qwen_yes_probabilities": [
+    0.3923368453979492,
+    0.7185943722724915,
+    0.8175744414329529,
+    0.7879312038421631,
+    0.8991213440895081,
+    0.7772998809814453,
+    0.24508501589298248,
+    0.4843800961971283,
+    0.622459352016449,
+    0.8175744414329529,
+    0.5926666259765625,
+    0.5926666259765625,
+    0.5156199336051941,
+    0.9241418242454529,
+    0.637030839920044,
+    0.43782350420951843
+  ],
+  "openjev_yes_probabilities": [
+    0.10090792924165726,
+    0.5851170420646667,
+    0.3944994807243347,
+    0.9090808033943176,
+    0.947285532951355,
+    0.8523842692375183,
+    0.06003331020474434,
+    0.21492351591587067,
+    0.19192132353782654,
+    0.7543419599533081,
+    0.35059601068496704,
+    0.6813449263572693,
+    0.031068218871951103,
+    0.5222292542457581,
+    0.010328338481485844,
+    0.007496869657188654
+  ],
+  "scope": "One state and all binary questions; both arms share the state prefix within each request. Qwen cold includes prefill, Qwen warm reuses a prior prefill. OpenJev call includes prefill."
+}

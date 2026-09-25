@@ -1,0 +1,31 @@
+{
+  "model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
+  "gpu": "NVIDIA A40",
+  "prefix_tokens": 256,
+  "branches": 16,
+  "suffix_tokens": 8,
+  "candidate_tokens": [
+    "Yes",
+    "No"
+  ],
+  "prefix_prefill_excluded": true,
+  "latency_ms": {
+    "1": 212.212,
+    "16": 213.104,
+    "flashinfer": 234.585
+  },
+  "speedup": 0.996,
+  "max_probability_delta_between_modes": 0.006993,
+  "reference_first_branch_probability": [
+    0.6584175229072571,
+    0.3415825068950653
+  ],
+  "grouped_first_branch_probability": [
+    0.6584175229072571,
+    0.3415825068950653
+  ],
+  "max_first_branch_delta_vs_transformers": 0.0,
+  "flashinfer_version": "0.6.13",
+  "max_probability_delta_flashinfer_vs_triton": 0.00754,
+  "max_first_branch_delta_flashinfer_vs_transformers": 0.0
+}

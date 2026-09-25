@@ -93,12 +93,12 @@ def run(args):
         prefix_gpu, suffix_ids, suffix_lengths = qwen_inputs()
         engine.prepare_prefix(prefix_gpu)
         return engine.score_suffixes(suffix_ids, candidate_ids, suffix_lengths,
-                                     branches_per_program=16)
+                                     branches_per_program=16, backend=args.qwen_backend)
 
     def qwen_warm():
         _, suffix_ids, suffix_lengths = qwen_inputs()
         return engine.score_suffixes(suffix_ids, candidate_ids, suffix_lengths,
-                                     branches_per_program=16)
+                                     branches_per_program=16, backend=args.qwen_backend)
 
     qwen_cold()  # compile and warm up
     qwen_cold_times = []
@@ -138,7 +138,8 @@ def run(args):
     agreement = sum((a >= .5) == (float(b) >= .5) for a, b in zip(qwen_yes, openjev_yes))
     result = {
         "gpu": torch.cuda.get_device_name(),
-        "qwen_model": args.qwen_model,
+        "qwen_model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
+        "qwen_backend": args.qwen_backend,
         "openjev_model": "AlexWortega/openjev/qwen3.5-4b-nli-v5",
         "openjev_revision": "058a6c24911b46d908fbe23541390f8af3df3e4d",
         "questions": args.branches,
@@ -172,6 +173,8 @@ def main():
     parser.add_argument("--prefix-len", type=int, default=256)
     parser.add_argument("--branches", type=int, default=8)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--qwen-backend", choices=("triton", "flashinfer"),
+                        default="triton")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     result = run(args)

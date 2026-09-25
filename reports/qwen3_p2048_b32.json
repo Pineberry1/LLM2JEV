@@ -1,5 +1,5 @@
 {
-  "model": "/workspace/songziyang/LLM/Qwen/Qwen3-4B",
+  "model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
   "gpu": "NVIDIA A40",
   "prefix_tokens": 2048,
   "branches": 32,

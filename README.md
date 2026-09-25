@@ -124,3 +124,6 @@ and a bounded individual suffix; it is not a general attention backend. The
 Qwen3 integration currently processes suffix tokens sequentially and does not
 serve an HTTP API. The OpenJev and Qwen paths use their own intended readouts,
 so matching latency does not imply matching decision quality or calibration.
+The Qwen3-4B checkpoint was already present on the server; its upstream
+revision was not recorded. Reproducing the exact Qwen numbers requires the
+same weights and software environment.

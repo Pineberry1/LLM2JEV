@@ -1,6 +1,6 @@
 {
   "gpu": "NVIDIA A40",
-  "qwen_model": "/workspace/songziyang/LLM/Qwen/Qwen3-4B",
+  "qwen_model": "Qwen3-4B (existing local checkpoint; upstream revision unverified)",
   "openjev_model": "AlexWortega/openjev/qwen3.5-4b-nli-v5",
   "openjev_revision": "058a6c24911b46d908fbe23541390f8af3df3e4d",
   "questions": 16,

@@ -1,0 +1,79 @@
+{
+  "gpu": "NVIDIA A40",
+  "qwen_model": "/workspace/songziyang/LLM/Qwen/Qwen3-4B",
+  "openjev_model": "AlexWortega/openjev/qwen3.5-4b-nli-v5",
+  "openjev_revision": "058a6c24911b46d908fbe23541390f8af3df3e4d",
+  "questions": 16,
+  "state_tokens_qwen": 1978,
+  "input_tokens_openjev_first_hypothesis": 2001,
+  "qwen_suffix_tokens_min_max": [
+    12,
+    15
+  ],
+  "qwen_cold_ms": 618.369,
+  "qwen_warm_ms": 407.15,
+  "openjev_shared_prefix_ms": 933.335,
+  "latency_samples_ms": {
+    "qwen_cold": [
+      624.398,
+      619.147,
+      618.369,
+      615.239,
+      616.818
+    ],
+    "qwen_warm": [
+      406.161,
+      407.15,
+      405.571,
+      409.837,
+      413.104
+    ],
+    "openjev_shared_prefix": [
+      951.756,
+      933.335,
+      932.05,
+      932.81,
+      933.337
+    ]
+  },
+  "openjev_to_qwen_cold_ratio": 1.509,
+  "openjev_to_qwen_warm_ratio": 2.292,
+  "answer_agreement": "12/16",
+  "qwen_yes_probabilities": [
+    0.3923368453979492,
+    0.7057850360870361,
+    0.7981867790222168,
+    0.7879312038421631,
+    0.8933094143867493,
+    0.7549149990081787,
+    0.22270014882087708,
+    0.4843800961971283,
+    0.6076632142066956,
+    0.8175744414329529,
+    0.5774953961372375,
+    0.6076632142066956,
+    0.4532618820667267,
+    0.9284088015556335,
+    0.637030839920044,
+    0.43782350420951843
+  ],
+  "openjev_yes_probabilities": [
+    0.10090792924165726,
+    0.5851170420646667,
+    0.3944994807243347,
+    0.9090808033943176,
+    0.947285532951355,
+    0.8523842692375183,
+    0.06003331020474434,
+    0.21492351591587067,
+    0.19192132353782654,
+    0.7543419599533081,
+    0.35059601068496704,
+    0.6813449263572693,
+    0.031068218871951103,
+    0.5222292542457581,
+    0.010328338481485844,
+    0.007496869657188654
+  ],
+  "scope": "One state and all binary questions; both arms share the state prefix within each request. Qwen cold includes prefill, Qwen warm reuses a prior prefill. OpenJev call includes prefill."
+}

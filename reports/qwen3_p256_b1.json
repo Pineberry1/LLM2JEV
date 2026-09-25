@@ -1,0 +1,23 @@
+{
+  "model": "/workspace/songziyang/LLM/Qwen/Qwen3-4B",
+  "gpu": "NVIDIA A40",
+  "prefix_tokens": 256,
+  "branches": 1,
+  "suffix_tokens": 8,
+  "query_heads": 32,
+  "kv_heads": 8,
+  "head_dim": 128,
+  "dtype": "torch.bfloat16",
+  "timing": "CUDA graph, kernel path, microseconds per call",
+  "results": {
+    "1": {
+      "latency_us": 10.777,
+      "max_abs_error": 0.0
+    },
+    "16": {
+      "latency_us": 8.18,
+      "max_abs_error": 0.000977
+    },
+    "speedup": 1.317
+  }
+}

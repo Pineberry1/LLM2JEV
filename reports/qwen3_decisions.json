@@ -1,0 +1,27 @@
+{
+  "model": "/workspace/songziyang/LLM/Qwen/Qwen3-4B",
+  "gpu": "NVIDIA A40",
+  "prefix_tokens": 256,
+  "branches": 16,
+  "suffix_tokens": 8,
+  "candidate_tokens": [
+    "Yes",
+    "No"
+  ],
+  "prefix_prefill_excluded": true,
+  "latency_ms": {
+    "1": 243.497,
+    "16": 245.626
+  },
+  "speedup": 0.991,
+  "max_probability_delta_between_modes": 0.006993,
+  "reference_first_branch_probability": [
+    0.6584175229072571,
+    0.3415825068950653
+  ],
+  "grouped_first_branch_probability": [
+    0.6584175229072571,
+    0.3415825068950653
+  ],
+  "max_first_branch_delta_vs_transformers": 0.0
+}

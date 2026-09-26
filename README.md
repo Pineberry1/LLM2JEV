@@ -43,6 +43,11 @@ The script calls SGLang's own `bench_serving` with its synthetic
 for timing scope and interpretation. The synthetic benchmark checks the
 parallel shared-prefix mechanism; it does not establish Yes/No accuracy.
 
+The [evaluation plan](experiments/EVALUATION_PLAN.md) specifies the missing
+JevBench accuracy, calibration, cold/warm cache and parallel-throughput
+experiments. A Jev-compatible decision endpoint is required before those
+results can be reported.
+
 ## Current findings
 
 The earlier custom-kernel experiment on one A40 showed **12.5× faster

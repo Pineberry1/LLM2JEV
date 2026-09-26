@@ -1,13 +1,21 @@
 # LLM2JEV
 
-Benchmark many short decisions that share one long input state. The current
-inference path uses **SGLang**, rather than a custom model runner.
+A general-purpose LLM can perform **Jev-style parallel verification**: give it
+one shared state, then ask several independent questions about that state at
+the same time. Each branch produces a short decision, such as Yes or No.
 
-SGLang's **RadixAttention / Radix Cache** reuses the shared prefix KV cache
-across requests. The branches then attend to that shared prefix through
-SGLang's attention backend; the example below selects **FlashInfer**. We
-measure the whole request, including server scheduling and generation, instead
-of reporting only an attention kernel time.
+The key is to avoid recomputing the long state for every branch:
+
+- **Radix Cache** keeps the shared state's KV cache so requests with the same
+  token prefix can reuse it.
+- **Shared-prefix attention** lets each branch attend to that cached state
+  while keeping its own question and answer tokens separate.
+- **Parallel serving** schedules the branches together, so one state can be
+  checked against many candidates concurrently.
+
+This repository uses **SGLang's RadixAttention** and its serving scheduler for
+that pattern. The example below selects its **FlashInfer** attention backend.
+We do not maintain a separate inference engine for the current path.
 
 ## Run
 
@@ -21,18 +29,19 @@ CUDA_VISIBLE_DEVICES=0 python -m sglang.launch_server \
   --host 127.0.0.1 --port 30000
 ```
 
-In another shell, run the shared-prefix workload. It uses 16 short branches
-with either a 256- or 2,048-token shared prefix and records cold-cache and
-warm-cache latency separately:
+In another shell, run 16 concurrent branches with either a 256- or
+2,048-token shared prefix. The script records cold-cache and warm-cache
+latency separately:
 
 ```bash
 bash experiments/sglang/run_shared_prefix.sh /path/to/Qwen3-4B
 ```
 
-The script calls SGLang's own `bench_serving` with its
+The script calls SGLang's own `bench_serving` with its synthetic
 `generated-shared-prefix` dataset. Results are written under
 `experiments/sglang/results/`. See the [experiment notes](experiments/sglang/README.md)
-for timing scope and interpretation.
+for timing scope and interpretation. The synthetic benchmark checks the
+parallel shared-prefix mechanism; it does not establish Yes/No accuracy.
 
 ## Current findings
 

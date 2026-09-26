@@ -10,11 +10,11 @@
   ],
   "prefix_prefill_excluded": true,
   "latency_ms": {
-    "1": 318.268,
-    "16": 211.994,
-    "flashinfer": 233.184
+    "1": 318.199,
+    "16": 215.305,
+    "flashinfer": 237.44
   },
-  "speedup": 1.501,
+  "speedup": 1.478,
   "max_probability_delta_between_modes": 0.007732,
   "reference_first_branch_probability": [
     0.5506073832511902,

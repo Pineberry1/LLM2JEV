@@ -38,6 +38,7 @@ class FlashInferSharedPrefixAttention:
         self.workspace = torch.empty(128 * 1024 * 1024, dtype=torch.uint8, device=device)
         self._wrappers = {}
         self._layer_caches = None
+        self._cache_generation = None
 
     def new_cache(self, prefix_keys: torch.Tensor, prefix_values: torch.Tensor) -> torch.Tensor:
         expected = (self.prefix_len, self.kv_heads, self.head_dim)
@@ -48,6 +49,11 @@ class FlashInferSharedPrefixAttention:
              self.page_size, self.kv_heads, self.head_dim),
             dtype=self.dtype, device=self.device,
         )
+        self._write_prefix(cache, prefix_keys, prefix_values)
+        return cache
+
+    def _write_prefix(self, cache: torch.Tensor, prefix_keys: torch.Tensor,
+                      prefix_values: torch.Tensor) -> None:
         padded_keys = torch.empty(
             (self.prefix_pages * self.page_size, self.kv_heads, self.head_dim),
             dtype=self.dtype, device=self.device,
@@ -61,16 +67,20 @@ class FlashInferSharedPrefixAttention:
         cache[:self.prefix_pages, 1].copy_(
             padded_values.view(self.prefix_pages, self.page_size, self.kv_heads, self.head_dim)
         )
-        return cache
 
     def prepare_layer_caches(self, prefix_keys: list[torch.Tensor],
-                             prefix_values: list[torch.Tensor]) -> list[torch.Tensor]:
+                             prefix_values: list[torch.Tensor],
+                             generation: int) -> list[torch.Tensor]:
+        if len(prefix_keys) != len(prefix_values):
+            raise ValueError("Prefix layer counts differ")
         if self._layer_caches is None:
-            if len(prefix_keys) != len(prefix_values):
-                raise ValueError("Prefix layer counts differ")
             self._layer_caches = [
                 self.new_cache(k, v) for k, v in zip(prefix_keys, prefix_values)
             ]
+        elif generation != self._cache_generation:
+            for cache, k, v in zip(self._layer_caches, prefix_keys, prefix_values):
+                self._write_prefix(cache, k, v)
+        self._cache_generation = generation
         return self._layer_caches
 
     def append(self, cache: torch.Tensor, position: int, keys: torch.Tensor,

@@ -84,6 +84,9 @@ python benchmarks/qwen3_attention.py \
   --model-path /path/to/Qwen3-4B --prefix-len 2048 --branches 32 --flashinfer
 python benchmarks/qwen3_decisions.py \
   --model-path /path/to/Qwen3-4B --prefix-len 2048 --branches 32 --flashinfer
+python benchmarks/prefix_scaling.py \
+  --model-path /path/to/Qwen3-4B --prefix-lengths 256 2048 \
+  --branches 16 --suffix-len 8 --flashinfer
 ```
 
 The reported FlashInfer runs used `flashinfer-python==0.6.13`, PyTorch
@@ -107,15 +110,18 @@ These are CUDA graph kernel-path timings on model-derived first-layer Q/K/V,
 not full inference latency. The largest absolute attention-output error against
 the float32 reference was below `0.001` in the reported runs.
 
-### Complete Qwen3-4B decision path, excluding first prefix prefill
+### Qwen3-4B branch scoring after prefix prefill
 
 | Shared prefix | Branches | Independent | Grouped | Grouped speedup |
 | ---: | ---: | ---: | ---: | ---: |
 | 256 tokens | 16 | 243.5 ms | 245.6 ms | 0.99× |
 | 2,048 tokens | 32 | 318.2 ms | 250.3 ms | 1.27× |
 
-The shorter prefix is dominated by model projections, MLPs, and token-by-token
-branch execution. A faster attention kernel does not guarantee a faster
+These two rows have different branch counts and were measured in separate
+runs. Each row compares attention modes for its own workload; these numbers
+do not isolate the cost of increasing the prefix length. In both cases,
+model projections, MLPs, and token-by-token branch execution account for most
+of the branch work. A faster attention kernel does not guarantee a faster
 complete request. With 2,048 prefix tokens, the grouped path changes the first
 branch's `Yes`/`No` probability by at most `0.0039` versus Transformers in this
 test; the maximum difference between grouped and independent modes over all
@@ -139,16 +145,37 @@ no ground-truth accuracy claim is made from those counts.
 
 ### FlashInfer shared-prefix cascade versus the Triton kernel
 
-These pairs were measured in the same benchmark process on the same A40.
-Attention timings use CUDA graphs with plans and KV page writes excluded.
-Complete Qwen3 timings include suffix page writes and every model layer, but
-exclude the first prefix prefill and one-time FlashInfer planning and prefix
-page packing.
+Each attention pair was measured in the same benchmark process on the same
+A40. Different rows are separate runs. They use CUDA graphs and exclude plans
+and KV page writes.
 
-| Shared prefix / branches | Triton attention | FlashInfer attention | Triton full decision | FlashInfer full decision |
+| Shared prefix / branches | Triton attention | FlashInfer attention |
+| --- | ---: | ---: |
+| 256 / 16 | 9.06 µs | 22.07 µs |
+| 2,048 / 16 | 39.08 µs | 41.16 µs |
+| 2,048 / 32 | 40.72 µs | 51.40 µs |
+
+### Controlled prefix-length comparison
+
+To measure the effect of prefix length, one process loaded Qwen3-4B once and
+used the same 16 branches and 8-token suffixes for both lengths. It alternated
+the order of lengths and backends, warmed up twice, and recorded seven CUDA
+event timings per configuration. "Branch" includes all Qwen3 layers and the
+suffix; for FlashInfer it also includes suffix page writes and refreshing the
+packed prefix pages. "Total" measures prefill and branch scoring together.
+
+| Backend | Prefix | Prefill | Branch | Total |
 | --- | ---: | ---: | ---: | ---: |
-| 256 / 16 | 9.06 µs | 22.07 µs | 213.10 ms | 234.59 ms |
-| 2,048 / 32 | 40.87 µs | 51.65 µs | 211.99 ms | 233.18 ms |
+| Triton | 256 | 33.65 ms | 203.68 ms | 237.32 ms |
+| Triton | 2,048 | 226.53 ms | 198.09 ms | 424.92 ms |
+| FlashInfer | 256 | 33.53 ms | 224.34 ms | 257.41 ms |
+| FlashInfer | 2,048 | 226.26 ms | 219.46 ms | 445.56 ms |
+
+The similar branch times are expected because the prefill is excluded from
+that column and eight suffix tokens pass through all model layers in both
+cases. Including prefill shows the longer prefix's cost. The small decrease
+in measured branch time at 2,048 tokens is specific to this GPU run; it does
+not imply that a longer prefix makes attention cheaper.
 
 The FlashInfer smoke check covered a 251-token prefix and suffix lengths of
 1, 6, 17, and 20, with maximum absolute attention-output error `0.00196`
@@ -159,13 +186,15 @@ Using the FlashInfer backend in the earlier OpenJev workload gave:
 
 | State / binary questions | Qwen + FlashInfer first request | Qwen + FlashInfer cached state | OpenJev shared prefix |
 | --- | ---: | ---: | ---: |
-| ~250 tokens / 8 | 439.0 ms | 401.7 ms | 337.3 ms |
-| ~2,000 tokens / 16 | 680.3 ms | 442.4 ms | 932.6 ms |
+| ~250 tokens / 8 | 434.4 ms | 404.1 ms | 391.5 ms |
+| ~2,000 tokens / 16 | 653.6 ms | 442.9 ms | 933.0 ms |
 
 Each entry is the median of five runs after warmup. These are separate runs
 from the original Triton versus OpenJev table above, so the direct backend
 comparison is the same-process table. Raw samples and timings are in
-[`reports/`](reports/).
+[`reports/`](reports/). The short OpenJev workload varied between about 337
+and 391 ms across our separate runs, so its small latency gaps should be
+interpreted cautiously.
 
 ## Limits
 

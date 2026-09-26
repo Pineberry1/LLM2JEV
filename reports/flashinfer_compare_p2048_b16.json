@@ -11,34 +11,34 @@
     12,
     15
   ],
-  "qwen_cold_ms": 680.273,
-  "qwen_warm_ms": 442.379,
-  "openjev_shared_prefix_ms": 932.584,
+  "qwen_cold_ms": 653.617,
+  "qwen_warm_ms": 442.929,
+  "openjev_shared_prefix_ms": 932.993,
   "latency_samples_ms": {
     "qwen_cold": [
-      680.273,
-      673.724,
-      670.78,
-      894.362,
-      682.875
+      654.612,
+      653.617,
+      654.295,
+      653.044,
+      652.627
     ],
     "qwen_warm": [
-      442.379,
-      441.745,
-      442.55,
-      443.965,
-      440.405
+      442.929,
+      443.069,
+      443.052,
+      442.208,
+      442.016
     ],
     "openjev_shared_prefix": [
-      931.326,
-      932.584,
-      931.837,
-      932.604,
-      936.294
+      932.579,
+      932.927,
+      934.395,
+      934.159,
+      932.993
     ]
   },
-  "openjev_to_qwen_cold_ratio": 1.371,
-  "openjev_to_qwen_warm_ratio": 2.108,
+  "openjev_to_qwen_cold_ratio": 1.427,
+  "openjev_to_qwen_warm_ratio": 2.106,
   "answer_agreement": "11/16",
   "qwen_yes_probabilities": [
     0.3923368453979492,

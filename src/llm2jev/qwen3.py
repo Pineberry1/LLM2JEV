@@ -23,6 +23,7 @@ class Qwen3BranchEngine:
         self.prefix_values = None
         self.prefix_len = 0
         self._flashinfer_runners = {}
+        self._prefix_generation = 0
 
     @torch.inference_mode()
     def prepare_prefix(self, prefix_ids: torch.Tensor) -> None:
@@ -33,7 +34,7 @@ class Qwen3BranchEngine:
         self.prefix_keys = [layer.keys[0].transpose(0, 1).contiguous() for layer in cache.layers]
         self.prefix_values = [layer.values[0].transpose(0, 1).contiguous() for layer in cache.layers]
         self.prefix_len = prefix_ids.shape[1]
-        self._flashinfer_runners.clear()
+        self._prefix_generation += 1
 
     @torch.inference_mode()
     def score_suffixes(
@@ -74,7 +75,7 @@ class Qwen3BranchEngine:
                 )
             flashinfer_runner = self._flashinfer_runners[key]
             flashinfer_caches = flashinfer_runner.prepare_layer_caches(
-                self.prefix_keys, self.prefix_values,
+                self.prefix_keys, self.prefix_values, self._prefix_generation,
             )
         else:
             suffix_keys = [None] * len(model.model.layers)

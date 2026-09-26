@@ -22,7 +22,7 @@ def main():
     runner = FlashInferSharedPrefixAttention(
         batch, q_heads, kv_heads, head_dim, prefix_len, suffix_len, q.dtype, q.device,
     )
-    cache = runner.new_cache(pk, pv)
+    cache = runner.prepare_layer_caches([pk], [pv], generation=1)[0]
     for position in range(suffix_len):
         runner.append(cache, position, sk[:, position], sv[:, position])
     actual = runner.forward(q, cache, lengths)
@@ -31,8 +31,22 @@ def main():
         torch.tensor(lengths, dtype=torch.int32, device=q.device),
     )
     error = (actual.float() - expected.float()).abs().max().item()
-    print(json.dumps({"max_abs_error": error, "lengths": lengths}))
+    newer_pk = torch.randn_like(pk)
+    newer_pv = torch.randn_like(pv)
+    refreshed_cache = runner.prepare_layer_caches(
+        [newer_pk], [newer_pv], generation=2,
+    )[0]
+    assert refreshed_cache is cache
+    refreshed = runner.forward(q, refreshed_cache, lengths)
+    refreshed_expected = reference_attention(
+        q, newer_pk, newer_pv, sk, sv,
+        torch.tensor(lengths, dtype=torch.int32, device=q.device),
+    )
+    refresh_error = (refreshed.float() - refreshed_expected.float()).abs().max().item()
+    print(json.dumps({"max_abs_error": error, "refresh_max_abs_error": refresh_error,
+                      "lengths": lengths}))
     assert error < 0.02, error
+    assert refresh_error < 0.02, refresh_error
 
 
 if __name__ == "__main__":
